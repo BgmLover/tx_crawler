@@ -10,18 +10,18 @@ import utils
 import config
 
 
-def get_new_tx(raw_tx, block_tx):
+def get_new_tx():
     print("starting to get new raw transaction ...")
-    raw_db = db.Tx(raw_tx)
-    block_db = db.Tx(block_tx)
+    raw_table = db.Tx(config.db_name, config.raw_tx_table_name)
+    block_table = db.Tx(config.db_name, config.block_tx_table_name)
     while True:
         r = requests.get("https://www.blockchain.com/btc/unconfirmed-transactions")
         soup = BeautifulSoup(r.content, features='lxml')
         for tx in soup.find_all(href=re.compile("/btc/tx*")):
-            get_new_tx_info(tx.string, raw_db, block_db)
+            get_new_tx_info(tx.string, raw_table, block_table)
 
 
-def get_new_tx_info(hash_str, raw_db, block_db):
+def get_new_tx_info(hash_str, raw_table, block_table):
     url = 'https://www.blockchain.com/btc/tx/' + hash_str
     r = requests.get(url)
     soup = BeautifulSoup(r.content, features='lxml')
@@ -78,25 +78,25 @@ def get_new_tx_info(hash_str, raw_db, block_db):
         tx['fee_rate'] = float(feerate)
 
         if is_confirmed:
-            block_db.add_block_tx(tx)
+            block_table.add_block_tx(tx)
         else:
-            raw_db.add_raw_tx(tx)
+            raw_table.add_raw_tx(tx)
 
     except Exception as e:
         print(str(e))
         print(hash_str)
-        raw_db.delete_tx(hash_str)
-        block_db.delete_tx(hash_str)
+        raw_table.delete_tx(hash_str)
+        block_table.delete_tx(hash_str)
 
 
-def update_tx(tx, raw_db, block_db):
+def update_tx(tx, raw_table, delta_table):
     url = 'https://www.blockchain.com/btc/tx/' + tx[0]
     r = requests.get(url)
     soup = BeautifulSoup(r.content, features='lxml')
     button = soup.find(id=re.compile("tx-*"))
     try:
         if button.find_all('button')[0].string != 'Unconfirmed Transaction!':
-            raw_db.delete_tx(tx[0])
+            raw_table.delete_tx(tx[0])
             row = soup.find_all("tr")
             index = 6
             if row.__len__() == 18:
@@ -113,52 +113,39 @@ def update_tx(tx, raw_db, block_db):
             tx_['total_output'] = tx[3]
             tx_['fees'] = tx[4]
             tx_['fee_rate'] = tx[5]
-            block_db.add_block_tx(tx_)
+            delta_table.add_block_tx(tx_)
 
-            if config.generate_csv:
-                with open("tx.csv", 'a+') as file:
-                    filednames = ['hash', 'size', 'receive_time', 'block_time', 'total_input', 'total_output', 'fees',
-                                  'fee_rate']
-                    writer = csv.DictWriter(file, fieldnames=filednames)
-                    writer.writerow(
-                        {
-                            'hash': tx[0],
-                            'size': tx[1],
-                            'receive_time': tx[6],
-                            'block_time': block_time,
-                            'total_input': tx[2],
-                            'total_output': tx[3],
-                            'fees': tx[4],
-                            'fee_rate': tx[5]
-                        }
-                    )
     except Exception as e:
         print(str(e))
         print(tx[0])
-        raw_db.delete_tx(tx[0])
-        block_db.delete_tx(tx[0])
+        raw_table.delete_tx(tx[0])
+        delta_table.delete_tx(tx[0])
 
 
-def update_tx_info(raw_tx, block_tx, raw_tx_list):
+def update_tx_info(raw_tx_list):
     print("starting to update transaction information...")
-    raw_db = db.Tx(raw_tx)
-    block_db = db.Tx(block_tx)
+    raw_table = db.Tx(config.db_name, config.raw_tx_table_name)
+    delta_table = db.Tx(config.db_name, config.delta_tx_table_name)
     i = 0
     for tx in raw_tx_list:
-        update_tx(tx, raw_db, block_db)
+        update_tx(tx, raw_table, delta_table)
         # print(str(i) + " in " + str(len(raw_tx_list)))
         # i = i + 1
 
 
-def assign_update_work(raw_tx, block_tx):
-    raw_db = db.Tx(raw_tx)
-    block_db = db.Tx(block_tx)
+def assign_update_work():
+    raw_table = db.Tx(config.db_name, config.raw_tx_table_name)
+    delta_table = db.Tx(config.db_name, config.delta_tx_table_name)
+    block_table = db.Tx(config.db_name, config.block_tx_table_name)
     thread_size = config.update_tx_thread_size
     while True:
-        all_tx = raw_db.get_all_tx()
-        print("current raw_tx size = " + str(raw_db.get_total_size()))
-        print("current block_tx_size = " + str(block_db.get_total_size()))
+        all_tx = raw_table.get_all_tx()
+        print("current raw_tx size = " + str(raw_table.get_total_size()))
+        print("current block_tx_size = " + str(block_table.get_total_size()))
+        print("current delta_tx size = " + str(delta_table.get_total_size()))
+
         if len(all_tx) < 500:
+            print("too few raw tx, stop updating raw tx")
             time.sleep(30)
             continue
         if len(all_tx) < 7000:
@@ -170,28 +157,66 @@ def assign_update_work(raw_tx, block_tx):
                 tx_list = all_tx[i * tx_size:len(all_tx) - 1]
             else:
                 tx_list = all_tx[i * tx_size:(i + 1) * tx_size]
-            thread_pool.append(threading.Thread(target=update_tx_info, args=[raw_tx, block_tx, tx_list]))
+            thread_pool.append(threading.Thread(target=update_tx_info, args=[tx_list]))
             thread_pool[i].start()
 
         for j in range(thread_size):
             thread_pool[j].join()
 
 
+def dump_delta_db():
+    delta_table = db.Tx(config.db_name, config.delta_tx_table_name)
+    block_table = db.Tx(config.db_name, config.block_tx_table_name)
+    while True:
+        time.sleep(config.delta_tx_dump_interval)
+        if not os.path.exists(config.dump_tx_dir):
+            os.mkdir(config.dump_tx_dir)
+        file_name = utils.timestamp_to_date(time.time()) + "_delta_.csv"
+        block_table.get_all_tx_from(delta_table.tablename)
+
+        delta_tx_list = delta_table.get_all_tx()
+        utils.dump_csv_file(delta_tx_list, config.dump_tx_dir + file_name)
+        print("dump file " + file_name)
+        for tx in delta_tx_list:
+            delta_table.delete_tx(tx[0])
+
+
+def dump_raw_db():
+    raw_table = db.Tx(config.db_name, config.raw_tx_table_name)
+    while True:
+        time.sleep(config.raw_tx_dump_interval)
+        if not os.path.exists(config.dump_tx_dir):
+            os.mkdir(config.dump_tx_dir)
+        file_name = utils.timestamp_to_date(time.time()) + "_raw_.csv"
+        utils.dump_csv_file(raw_table.get_all_tx(), config.dump_tx_dir + file_name)
+        print("dump file " + file_name)
+
+
 def main():
-    raw_tx = config.raw_tx_db_name
-    block_tx = config.block_tx_db_name
-    if not os.path.exists(raw_tx):
-        db.createTable(raw_tx)
-    if not os.path.exists(block_tx):
-        db.createTable(block_tx)
+    if not os.path.exists(config.db_name):
+        db.create_db(config.db_name)
+        db.create_table(config.db_name, config.raw_tx_table_name)
+        db.create_table(config.db_name, config.delta_tx_table_name)
+        db.create_table(config.db_name, config.block_tx_table_name)
 
     time.sleep(3)
     get_raw_thread = []
     for i in range(config.get_raw_tx_thread_size):
-        get_raw_thread.append(threading.Thread(target=get_new_tx, args=[raw_tx, block_tx]))
+        get_raw_thread.append(threading.Thread(target=get_new_tx, args=[]))
         get_raw_thread[i].start()
 
-    assign_update_work(raw_tx, block_tx)
+    if config.generate_snapshot:
+        dump_raw_thread = threading.Thread(target=dump_raw_db, args=[])
+        dump_raw_thread.start()
+
+        dump_delta_thread = threading.Thread(target=dump_delta_db, args=[])
+        dump_delta_thread.start()
+
+    assign_update_work()
+
+    if config.generate_snapshot:
+        dump_raw_thread.join()
+        dump_delta_thread.join()
 
     for i in range(config.get_raw_tx_thread_size):
         get_raw_thread[i].join()
@@ -200,3 +225,7 @@ def main():
 if __name__ == '__main__':
     # print(cpu_count())
     main()
+
+    block_tx = db.Tx(config.db_name, config.block_tx_table_name)
+    tx_list = block_tx.get_all_tx()
+    utils.dump_csv_file(tx_list, "123.csv")

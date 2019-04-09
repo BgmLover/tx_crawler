@@ -1,11 +1,17 @@
 import sqlite3
 
 
-def createTable(table_name):
-    conn = sqlite3.connect(table_name)
+def create_db(db_name):
+    conn = sqlite3.connect(db_name)
+    conn.commit()
+    conn.close()
+
+
+def create_table(db_name, table_name):
+    conn = sqlite3.connect(db_name)
     c = conn.cursor()
-    c.execute(''' CREATE TABLE TX(
-    HASH TEXT PRIMARY KEY NOT NULL,
+    command = "CREATE TABLE " + table_name + '''
+    (HASH TEXT PRIMARY KEY NOT NULL,
     SIZE INT,
     TOTAL_INPUT REAL,
     TOTAL_OUTPUT REAL,
@@ -14,31 +20,21 @@ def createTable(table_name):
     RECEIVED_TIME REAL,
     BLOCK_TIME REAL
     );
-    ''')
-    conn.commit()
-    conn.close()
-
-
-def createRawTable():
-    conn = sqlite3.connect("raw_tx.db", check_same_thread=False)
-    c = conn.cursor()
-    c.execute(''' CREATE TABLE RAW_TX(
-        HASH TEXT PRIMARY KEY NOT NULL
-        );
-        ''')
+    '''
+    c.execute(command)
     conn.commit()
     conn.close()
 
 
 class Tx:
-    def __init__(self, table_name):
+    def __init__(self, db_name, table_name):
         self.tablename = table_name
-        self.conn = sqlite3.connect(table_name)
+        self.conn = sqlite3.connect(db_name)
 
     def add_raw_tx(self, tx_info):
         if not self.is_exist(tx_info['hash']):
             c = self.conn.cursor()
-            command = "INSERT INTO TX(HASH,SIZE,TOTAL_INPUT,TOTAL_OUTPUT,FEE,FEE_RATE,RECEIVED_TIME) VALUES ('" + \
+            command = "INSERT INTO " + self.tablename + "(HASH,SIZE,TOTAL_INPUT,TOTAL_OUTPUT,FEE,FEE_RATE,RECEIVED_TIME) VALUES ('" + \
                       tx_info['hash'] + "'," + str(tx_info['size']) + "," + str(tx_info['total_input']) + "," + \
                       str(tx_info['total_output']) + "," + str(tx_info['fees']) + "," + str(tx_info['fee_rate']) + \
                       "," + str(tx_info['receive_time']) + ")"
@@ -49,7 +45,7 @@ class Tx:
     def add_block_tx(self, tx_info):
         if not self.is_exist(tx_info['hash']):
             c = self.conn.cursor()
-            command = "INSERT INTO TX(HASH,SIZE,TOTAL_INPUT,TOTAL_OUTPUT,FEE,FEE_RATE,RECEIVED_TIME,BLOCK_TIME) VALUES ('" + \
+            command = "INSERT INTO " + self.tablename + "(HASH,SIZE,TOTAL_INPUT,TOTAL_OUTPUT,FEE,FEE_RATE,RECEIVED_TIME,BLOCK_TIME) VALUES ('" + \
                       tx_info['hash'] + "'," + str(tx_info['size']) + "," + str(tx_info['total_input']) + "," + \
                       str(tx_info['total_output']) + "," + str(tx_info['fees']) + "," + str(tx_info['fee_rate']) + \
                       "," + str(tx_info['receive_time']) + \
@@ -58,6 +54,12 @@ class Tx:
             c.execute(command)
             self.conn.commit()
             # print("add new into " + self.tablename + " " + tx_info['hash'])
+
+    def get_all_tx_from(self, source_table):
+        c = self.conn.cursor()
+        command = "INSERT INTO " + self.tablename + " SELECT * FROM " + source_table
+        c.execute(command)
+        self.conn.commit()
 
     # def updateTx(self, tx_info):
     #     if self.is_exist(tx_info["hash"]):
@@ -77,7 +79,7 @@ class Tx:
 
     def is_exist(self, hash_str):
         c = self.conn.cursor()
-        command = "SELECT HASH from TX where HASH=" + '"' + hash_str + '"'
+        command = "SELECT HASH from " + self.tablename + "  where HASH=" + '"' + hash_str + '"'
         cursor = c.execute(command)
         data = cursor.fetchone()
         if data is None:
@@ -88,14 +90,14 @@ class Tx:
     def delete_tx(self, hash_str):
         if self.is_exist(hash_str):
             c = self.conn.cursor()
-            command = "DELETE from TX where HASH=" + '"' + hash_str + '"'
+            command = "DELETE from " + self.tablename + " where HASH=" + '"' + hash_str + '"'
             c.execute(command)
             self.conn.commit()
             # print("delete from " + self.tablename + hash_str)
 
     def get_all_tx(self):
         c = self.conn.cursor()
-        command = "SELECT * from TX"
+        command = "SELECT * from " + self.tablename
         cursor = c.execute(command)
         return cursor.fetchall()
 
@@ -109,6 +111,6 @@ class Tx:
 
     def get_total_size(self):
         c = self.conn.cursor()
-        command = "SELECT COUNT(*) FROM TX"
+        command = "SELECT COUNT(*) FROM " + self.tablename
         size = c.execute(command).fetchone()
         return size[0]
