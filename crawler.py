@@ -15,10 +15,13 @@ def get_new_tx():
     raw_table = db.Tx(config.db_name, config.raw_tx_table_name)
     block_table = db.Tx(config.db_name, config.block_tx_table_name)
     while True:
-        r = requests.get("https://www.blockchain.com/btc/unconfirmed-transactions")
-        soup = BeautifulSoup(r.content, features='lxml')
-        for tx in soup.find_all(href=re.compile("/btc/tx*")):
-            get_new_tx_info(tx.string, raw_table, block_table)
+        try:
+            r = requests.get("https://www.blockchain.com/btc/unconfirmed-transactions")
+            soup = BeautifulSoup(r.content, features='lxml')
+            for tx in soup.find_all(href=re.compile("/btc/tx*")):
+                get_new_tx_info(tx.string, raw_table, block_table)
+        except Exception as e:
+            print(e)
 
 
 def get_new_tx_info(hash_str, raw_table, block_table):
