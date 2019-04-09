@@ -21,7 +21,7 @@
 
 you can just run the build.sh to install these dependence
 ```bash
-./build.sh
+./build_osx.sh or ./build_linux.sh
 ```
 ## run
 ```bash
