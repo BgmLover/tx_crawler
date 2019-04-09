@@ -1,0 +1,6 @@
+.idea/*
+*.db
+*.csv
+*.out
+venv/*
+__pycache__/*
