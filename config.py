@@ -1,6 +1,6 @@
 from multiprocessing import cpu_count
 
-db_name = "tx.db"
+db_name = "/data/tx.db"
 
 raw_tx_table_name = "raw_tx"
 block_tx_table_name = "block_tx"
