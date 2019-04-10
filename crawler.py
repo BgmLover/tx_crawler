@@ -3,7 +3,6 @@ import re
 from bs4 import BeautifulSoup
 import db
 import threading
-import csv
 import os
 import time
 import utils
@@ -225,7 +224,14 @@ def main():
         get_raw_thread[i].join()
 
 
+def dump_db():
+    while True:
+        os.system("rm " + config.db_copy_name)
+        cmd = "cp " + config.db_name + " " + config.db_copy_name
+        os.system(cmd)
+        time.sleep(config.db_dump_time)
+
+
 if __name__ == '__main__':
     # print(cpu_count())
     main()
-
