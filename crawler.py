@@ -229,6 +229,3 @@ if __name__ == '__main__':
     # print(cpu_count())
     main()
 
-    block_tx = db.Tx(config.db_name, config.block_tx_table_name)
-    tx_list = block_tx.get_all_tx()
-    utils.dump_csv_file(tx_list, "123.csv")
