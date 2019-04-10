@@ -202,6 +202,10 @@ def main():
         db.create_table(config.db_name, config.block_tx_table_name)
 
     time.sleep(3)
+
+    dump_db_thread = threading.Thread(target=dump_db, args=[])
+    dump_db_thread.start()
+
     get_raw_thread = []
     for i in range(config.get_raw_tx_thread_size):
         get_raw_thread.append(threading.Thread(target=get_new_tx, args=[]))
@@ -222,6 +226,8 @@ def main():
 
     for i in range(config.get_raw_tx_thread_size):
         get_raw_thread[i].join()
+
+    dump_db_thread.join()
 
 
 def dump_db():
