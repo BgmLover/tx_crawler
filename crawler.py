@@ -120,8 +120,8 @@ def update_tx(tx, raw_table, delta_table):
     except Exception as e:
         print(str(e))
         print(tx[0])
-        raw_table.delete_tx(tx[0])
-        delta_table.delete_tx(tx[0])
+        # raw_table.delete_tx(tx[0])
+        # delta_table.delete_tx(tx[0])
 
 
 def update_tx_info(raw_tx_list):
