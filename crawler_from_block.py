@@ -8,7 +8,7 @@ import os
 import threading
 
 
-def get_block_tx(block_hash, table_name):
+def get_block_tx(block_hash, table_name, db_lock):
     url = "https://www.blockchain.com/btc/block/" + block_hash
     r = requests.get(url)
     soup = BeautifulSoup(r.content, features='lxml')
@@ -27,11 +27,13 @@ def get_block_tx(block_hash, table_name):
             tx_list.append(tx_info)
             if i % 200 == 0:
                 print("get " + str(i) + " tx in " + block_hash)
+        db_lock.acquire()
         for tx_info in tx_list:
             try:
                 table.add_block_tx(tx_info)
             except Exception as e:
                 print(e, tx_info)
+        db_lock.release()
 
 
 def get_block_tx_info(hash_str):
@@ -94,6 +96,7 @@ def get_block_tx_info(hash_str):
 def assign_work(table_name):
     height = config.block_init_height
     thread_pool = []
+    db_lock = threading.Lock()
     while True:
         url = "https://www.blockchain.com/btc/block-height/" + str(height)
         r = requests.get(url)
@@ -105,7 +108,7 @@ def assign_work(table_name):
         height = height - 1
         if utils.date_to_timestamp(block_time) > utils.date_to_timestamp(config.block_stop_time):
             if thread_pool.__len__() < config.thread_pool_max_size:
-                thread = threading.Thread(target=get_block_tx, args=[block_hash, table_name])
+                thread = threading.Thread(target=get_block_tx, args=[block_hash, table_name, db_lock])
                 thread.start()
                 thread_pool.append(thread)
             else:
