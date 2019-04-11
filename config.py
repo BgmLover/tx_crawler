@@ -22,3 +22,4 @@ update_tx_thread_size = min(cpu_count() - get_raw_tx_thread_size, 8)
 
 block_stop_time = "2018-01-01 00:00:00"
 block_init_height = 570444
+thread_pool_max_size = 20

@@ -25,6 +25,8 @@ def get_block_tx(block_hash, table_name):
                 continue
             tx_info = get_block_tx_info(tx.string)
             tx_list.append(tx_info)
+            if i % 200 == 0:
+                print("get " + str(i) + " tx in " + block_hash)
         for tx_info in tx_list:
             try:
                 table.add_block_tx(tx_info)
@@ -102,7 +104,7 @@ def assign_work(table_name):
         print(str(height) + "  " + block_time)
         height = height - 1
         if utils.date_to_timestamp(block_time) > utils.date_to_timestamp(config.block_stop_time):
-            if thread_pool.__len__() < 10:
+            if thread_pool.__len__() < config.thread_pool_max_size:
                 thread = threading.Thread(target=get_block_tx, args=[block_hash, table_name])
                 thread.start()
                 thread_pool.append(thread)
