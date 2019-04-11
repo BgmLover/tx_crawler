@@ -1,4 +1,5 @@
 import sqlite3
+from threading import Lock
 
 
 def create_db(db_name):
@@ -114,3 +115,53 @@ class Tx:
         command = "SELECT COUNT(*) FROM " + self.tablename
         size = c.execute(command).fetchone()
         return size[0]
+
+
+class DBCache:
+    def __init__(self):
+        self.lock = Lock()
+        self.add_queue = dict()
+        self.delete_queue = dict()
+
+    def add_item(self, key, value, is_add_queue):
+        self.lock.acquire()
+        if is_add_queue:
+            self.add_queue[key] = value
+        else:
+            self.delete_queue[key] = value
+        self.lock.release()
+
+    def remove_item(self, key, is_add_queue):
+        self.lock.acquire()
+        if is_add_queue:
+            self.add_queue.pop(key)
+        else:
+            self.delete_queue.pop(key)
+        self.lock.release()
+
+    def get_one(self, is_add_queue):
+        self.lock.acquire()
+        if is_add_queue:
+            value = self.add_queue.popitem()
+        else:
+            value = self.delete_queue.popitem()
+        self.lock.release()
+        return value
+
+    def is_empty(self, is_add_queue):
+        self.lock.acquire()
+        if is_add_queue:
+            res = self.add_queue.__len__() == 0
+        else:
+            res = self.delete_queue.__len__() == 0
+        self.lock.release()
+        return res
+
+    def get_size(self,is_add_queue):
+        self.lock.acquire()
+        if is_add_queue:
+            res = self.add_queue.__len__()
+        else:
+            res = self.delete_queue.__len__()
+        self.lock.release()
+        return res

@@ -9,21 +9,21 @@ import utils
 import config
 
 
-def get_new_tx():
+def get_new_tx(raw_cache, delta_cache):
     print("starting to get new raw transaction ...")
-    raw_table = db.Tx(config.db_name, config.raw_tx_table_name)
-    block_table = db.Tx(config.db_name, config.block_tx_table_name)
+    # raw_table = db.Tx(config.db_name, config.raw_tx_table_name)
+    # block_table = db.Tx(config.db_name, config.block_tx_table_name)
     while True:
         try:
             r = requests.get("https://www.blockchain.com/btc/unconfirmed-transactions")
             soup = BeautifulSoup(r.content, features='lxml')
             for tx in soup.find_all(href=re.compile("/btc/tx*")):
-                get_new_tx_info(tx.string, raw_table, block_table)
+                get_new_tx_info(tx.string, raw_cache, delta_cache)
         except Exception as e:
             print(e)
 
 
-def get_new_tx_info(hash_str, raw_table, block_table):
+def get_new_tx_info(hash_str, raw_cache, block_cache):
     url = 'https://www.blockchain.com/btc/tx/' + hash_str
     r = requests.get(url)
     soup = BeautifulSoup(r.content, features='lxml')
@@ -80,25 +80,21 @@ def get_new_tx_info(hash_str, raw_table, block_table):
         tx['fee_rate'] = float(feerate)
 
         if is_confirmed:
-            block_table.add_block_tx(tx)
+            block_cache.add_item(tx['hash'], tx, True)
         else:
-            raw_table.add_raw_tx(tx)
-
+            raw_cache.add_item(tx['hash'], tx, True)
     except Exception as e:
         print(str(e))
-        print(hash_str)
-        raw_table.delete_tx(hash_str)
-        block_table.delete_tx(hash_str)
 
 
-def update_tx(tx, raw_table, delta_table):
+def update_tx(tx, raw_cache, block_cache):
     url = 'https://www.blockchain.com/btc/tx/' + tx[0]
     r = requests.get(url)
     soup = BeautifulSoup(r.content, features='lxml')
     button = soup.find(id=re.compile("tx-*"))
     try:
         if button.find_all('button')[0].string != 'Unconfirmed Transaction!':
-            raw_table.delete_tx(tx[0])
+            raw_cache.add_item(tx[0], 0, False)
             row = soup.find_all("tr")
             index = 6
             if row.__len__() == 18:
@@ -115,40 +111,40 @@ def update_tx(tx, raw_table, delta_table):
             tx_['total_output'] = tx[3]
             tx_['fees'] = tx[4]
             tx_['fee_rate'] = tx[5]
-            delta_table.add_block_tx(tx_)
+
+            block_cache.add_item(tx_['hash'], tx_, True)
 
     except Exception as e:
         print(str(e))
         print(tx[0])
-        # raw_table.delete_tx(tx[0])
-        # delta_table.delete_tx(tx[0])
 
 
-def update_tx_info(raw_tx_list):
+def update_tx_info(raw_tx_list, raw_cache, block_cache):
     print("starting to update transaction information...")
-    raw_table = db.Tx(config.db_name, config.raw_tx_table_name)
-    delta_table = db.Tx(config.db_name, config.delta_tx_table_name)
     i = 0
     for tx in raw_tx_list:
-        update_tx(tx, raw_table, delta_table)
+        update_tx(tx, raw_cache, block_cache)
         # print(str(i) + " in " + str(len(raw_tx_list)))
         # i = i + 1
 
 
-def assign_update_work():
+def assign_update_work(raw_cache, block_cache):
     raw_table = db.Tx(config.db_name, config.raw_tx_table_name)
     delta_table = db.Tx(config.db_name, config.delta_tx_table_name)
     block_table = db.Tx(config.db_name, config.block_tx_table_name)
     thread_size = config.update_tx_thread_size
     while True:
+        # lock.acquire()
         all_tx = raw_table.get_all_tx()
+        # lock.release()
         print("current raw_tx size = " + str(raw_table.get_total_size()))
+        print("current raw cache size = " + str(raw_cache.get_size(True)))
         print("current block_tx_size = " + str(block_table.get_total_size()))
         print("current delta_tx size = " + str(delta_table.get_total_size()))
 
         if len(all_tx) < 500:
             print("too few raw tx, stop updating raw tx")
-            time.sleep(30)
+            time.sleep(5)
             continue
         if len(all_tx) < 7000:
             thread_size = min(2, config.total_thead_size)
@@ -159,7 +155,7 @@ def assign_update_work():
                 tx_list = all_tx[i * tx_size:len(all_tx) - 1]
             else:
                 tx_list = all_tx[i * tx_size:(i + 1) * tx_size]
-            thread_pool.append(threading.Thread(target=update_tx_info, args=[tx_list]))
+            thread_pool.append(threading.Thread(target=update_tx_info, args=[tx_list, raw_cache, block_cache]))
             thread_pool[i].start()
 
         for j in range(thread_size):
@@ -183,6 +179,39 @@ def dump_delta_db():
             delta_table.delete_tx(tx[0])
 
 
+def flash_raw_cache_to_db(cache):
+    table = db.Tx(config.db_name, config.raw_tx_table_name)
+    time.sleep(1)
+    while True:
+        while not cache.is_empty(False):
+            item = cache.get_one(False)
+            try:
+                # lock.acquire()
+                table.delete_tx(item[0])
+                # lock.release()
+            except Exception as e:
+                print(e)
+        while not cache.is_empty(True):
+            item = cache.get_one(True)
+            try:
+                # lock.acquire()
+                table.add_raw_tx(item[1])
+                # lock.release()
+            except Exception as e:
+                print(e)
+
+
+def flash_block_cache_to_db(cache):
+    table = db.Tx(config.db_name, config.delta_tx_table_name)
+    while True:
+        while not cache.is_empty(True):
+            item = cache.get_one(True)
+            try:
+                table.add_block_tx(item[1])
+            except Exception as e:
+                print(e)
+
+
 def dump_raw_db():
     raw_table = db.Tx(config.db_name, config.raw_tx_table_name)
     while True:
@@ -201,14 +230,23 @@ def main():
         db.create_table(config.db_name, config.delta_tx_table_name)
         db.create_table(config.db_name, config.block_tx_table_name)
 
-    time.sleep(3)
+    # time.sleep(3)
+
+    raw_cache = db.DBCache()
+    delta_cache = db.DBCache()
+
+    flush_raw_thread = threading.Thread(target=flash_raw_cache_to_db, args=[raw_cache])
+    flush_raw_thread.start()
+
+    flush_block_thread = threading.Thread(target=flash_block_cache_to_db, args=[delta_cache])
+    flush_block_thread.start()
 
     dump_db_thread = threading.Thread(target=dump_db, args=[])
     dump_db_thread.start()
 
     get_raw_thread = []
     for i in range(config.get_raw_tx_thread_size):
-        get_raw_thread.append(threading.Thread(target=get_new_tx, args=[]))
+        get_raw_thread.append(threading.Thread(target=get_new_tx, args=[raw_cache, delta_cache]))
         get_raw_thread[i].start()
 
     if config.generate_snapshot:
@@ -218,7 +256,7 @@ def main():
         dump_delta_thread = threading.Thread(target=dump_delta_db, args=[])
         dump_delta_thread.start()
 
-    assign_update_work()
+    assign_update_work(raw_cache, delta_cache)
 
     if config.generate_snapshot:
         dump_raw_thread.join()
@@ -228,6 +266,8 @@ def main():
         get_raw_thread[i].join()
 
     dump_db_thread.join()
+    flush_raw_thread.join()
+    flush_block_thread.join()
 
 
 def dump_db():
@@ -238,6 +278,7 @@ def dump_db():
         time.sleep(config.db_dump_time)
 
 
+lock = threading.Lock()
 if __name__ == '__main__':
     # print(cpu_count())
     main()
