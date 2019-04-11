@@ -34,6 +34,7 @@ def get_block_tx(block_hash, table_name, db_lock):
             except Exception as e:
                 print(e, tx_info)
         db_lock.release()
+    print("finish get block " + block_hash)
 
 
 def get_block_tx_info(hash_str):
