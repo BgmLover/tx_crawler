@@ -1,6 +1,6 @@
 from multiprocessing import cpu_count
 
-db_name = "tx.db"
+db_name = "/data/tx.db"
 db_copy_name = "tx_.db"
 db_dump_time = 5 * 60
 
@@ -21,5 +21,5 @@ update_tx_thread_size = min(cpu_count() - get_raw_tx_thread_size, 8)
 
 
 block_stop_time = "2018-01-01 00:00:00"
-block_init_height = 570444
-thread_pool_max_size = 20
+block_init_height = 569690
+thread_pool_max_size = 30
