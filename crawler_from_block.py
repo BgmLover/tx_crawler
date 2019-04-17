@@ -8,9 +8,14 @@ import os
 import threading
 
 
-def get_block_tx(block_hash, table_name, db_lock):
+def get_block_tx(block_hash,height, table_name, db_lock):
     url = "https://www.blockchain.com/btc/block/" + block_hash
-    r = requests.get(url)
+    while True:
+        try:
+            r = requests.get(url)
+            break
+        except Exception as e:
+            print(e)
     soup = BeautifulSoup(r.content, features='lxml')
     chain_info = soup.find_all(href=re.compile("/btc/block-height/*"))[0] \
         .parent.find(color=re.compile('"*')).text.rstrip()
@@ -34,12 +39,17 @@ def get_block_tx(block_hash, table_name, db_lock):
             except Exception as e:
                 print(e, tx_info)
         db_lock.release()
-    print("finish get block " + block_hash)
+    print("finish get block "+str(height)+"  " + block_hash)
 
 
 def get_block_tx_info(hash_str):
     url = 'https://www.blockchain.com/btc/tx/' + hash_str
-    r = requests.get(url)
+    while True:
+        try:
+            r = requests.get(url)
+            break
+        except Exception as e:
+            print(e)
     soup = BeautifulSoup(r.content, features='lxml')
     try:
 
@@ -118,23 +128,28 @@ def assign_work(table_name):
     thread_pool = []
     db_lock = threading.Lock()
     while True:
-        url = "https://www.blockchain.com/btc/block-height/" + str(height)
-        r = requests.get(url)
-        soup = BeautifulSoup(r.content, features='lxml')
-        tr = soup.find_all("tr")
-        block_hash = tr[2].find_all("td")[1].text
-        block_time = tr[5].find_all("td")[1].string
-        print(str(height) + "  " + block_time)
-        height = height - 1
+        try:
+            url = "https://www.blockchain.com/btc/block-height/" + str(height)
+            r = requests.get(url)
+            soup = BeautifulSoup(r.content, features='lxml')
+            tr = soup.find_all("tr")
+            block_hash = tr[2].find_all("td")[1].text
+            block_time = tr[5].find_all("td")[1].string
+        except Exception as e:
+            print(e,height)
+            continue
+
         if utils.date_to_timestamp(block_time) > utils.date_to_timestamp(config.block_stop_time):
             if thread_pool.__len__() < config.thread_pool_max_size:
-                thread = threading.Thread(target=get_block_tx, args=[block_hash, table_name, db_lock])
+                thread = threading.Thread(target=get_block_tx, args=[block_hash,height, table_name, db_lock])
                 thread.start()
                 thread_pool.append(thread)
+                print(str(height) + " "+block_time)
+                height = height -1
             else:
                 for thread in thread_pool:
-                    thread.join()
-                    thread_pool.remove(thread)
+                    if not thread.isAlive():
+                        thread_pool.remove(thread)
         else:
             print("current block time = " + block_time + ", stop block time = " + config.block_stop_time)
             return
