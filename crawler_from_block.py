@@ -47,20 +47,28 @@ def get_block_tx_info(hash_str):
         size = row[3].find_all("td")[1].string.split("(")[0]
         # print('size = ' + size)
 
+        weight = row[4].find_all("td")[1].string
+        # print(weight)
+
         receive_time = row[5].find_all("td")[1].string.lstrip()
         # print(receive_time)
 
         receive_time = utils.date_to_timestamp(receive_time)
 
+        lock_time = -1
+
         block_time_index = 6
         total_input_index = 10
 
         if row.__len__() == 18:
+            lock_time = row[6].find_all('td')[1].string.split('\n')[2].lstrip()
             block_time_index = block_time_index + 1
             total_input_index = total_input_index + 1
 
         block_time = row[block_time_index].find_all("td")[1].text.split('(')[1].lstrip().split(' +')[0]
         block_time = utils.date_to_timestamp(block_time)
+
+        confirmations = row[block_time_index + 1].find_all("td")[1].string
 
         total_input = row[total_input_index].find_all("td")[1].find("span").string.split(' ')[0]
         total_input = utils.format_value(total_input)
@@ -78,15 +86,26 @@ def get_block_tx_info(hash_str):
         fee_rate = utils.format_value(fee_rate)
         # print(fee_rate)
 
+        fee_wrate = row[total_input_index + 4].find_all("td")[1].string.lstrip().rstrip().split(' ')[0]
+        fee_wrate = utils.format_value(fee_wrate)
+
+        transacted = row[total_input_index + 5].find_all("td")[1].text.lstrip().rstrip().split(' ')[0]
+        transacted = utils.format_value(transacted)
+
         tx = dict()
         tx['hash'] = hash_str
-        tx['size'] = size
+        tx['size'] = int(size)
+        tx['weight'] = int(weight)
+        tx['lock_time'] = int(lock_time)
+        tx['confirmations'] = int(confirmations)
         tx['receive_time'] = float(receive_time)
         tx['block_time'] = float(block_time)
         tx['total_input'] = float(total_input)
         tx['total_output'] = float(total_output)
         tx['fees'] = float(fees)
         tx['fee_rate'] = float(fee_rate)
+        tx['fee_wrate'] = float(fee_wrate)
+        tx['transacted'] = float(transacted)
 
         return tx
     except Exception as e:

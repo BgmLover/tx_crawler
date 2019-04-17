@@ -14,10 +14,15 @@ def create_table(db_name, table_name):
     command = "CREATE TABLE " + table_name + '''
     (HASH TEXT PRIMARY KEY NOT NULL,
     SIZE INT,
+    WEIGHT INT,
+    LOCK_TIME INT,
+    CONFIRMATIONS INT,
     TOTAL_INPUT REAL,
     TOTAL_OUTPUT REAL,
     FEE REAL,
     FEE_RATE REAL,
+    FEE_WRATE REAL,
+    TRANSACTED REAL,
     RECEIVED_TIME REAL,
     BLOCK_TIME REAL
     );
@@ -32,29 +37,40 @@ class Tx:
         self.tablename = table_name
         self.conn = sqlite3.connect(db_name)
 
-    def add_raw_tx(self, tx_info):
-        if not self.is_exist(tx_info['hash']):
-            c = self.conn.cursor()
-            command = "INSERT INTO " + self.tablename + "(HASH,SIZE,TOTAL_INPUT,TOTAL_OUTPUT,FEE,FEE_RATE,RECEIVED_TIME) VALUES ('" + \
-                      tx_info['hash'] + "'," + str(tx_info['size']) + "," + str(tx_info['total_input']) + "," + \
-                      str(tx_info['total_output']) + "," + str(tx_info['fees']) + "," + str(tx_info['fee_rate']) + \
-                      "," + str(tx_info['receive_time']) + ")"
-            c.execute(command)
-            self.conn.commit()
-            # print("add new into " + self.tablename + " " + tx_info['hash'])
-
     def add_block_tx(self, tx_info):
         if not self.is_exist(tx_info['hash']):
             c = self.conn.cursor()
-            command = "INSERT INTO " + self.tablename + "(HASH,SIZE,TOTAL_INPUT,TOTAL_OUTPUT,FEE,FEE_RATE,RECEIVED_TIME,BLOCK_TIME) VALUES ('" + \
-                      tx_info['hash'] + "'," + str(tx_info['size']) + "," + str(tx_info['total_input']) + "," + \
-                      str(tx_info['total_output']) + "," + str(tx_info['fees']) + "," + str(tx_info['fee_rate']) + \
-                      "," + str(tx_info['receive_time']) + \
-                      "," + str(tx_info['block_time']) + \
+            command = "INSERT INTO " + self.tablename + "(HASH,SIZE,WEIGHT,LOCK_TIME,CONFIRMATIONS,TOTAL_INPUT,TOTAL_OUTPUT,FEE,FEE_RATE,FEE_WRATE,TRANSACTED,RECEIVED_TIME,BLOCK_TIME) VALUES ('" + \
+                      tx_info['hash'] + "'," + \
+                      str(tx_info['size']) + "," + \
+                      str(tx_info['weight']) + "," + \
+                      str(tx_info['lock_time']) + "," + \
+                      str(tx_info['confirmations']) + "," + \
+                      str(tx_info['total_input']) + "," + \
+                      str(tx_info['total_output']) + "," + \
+                      str(tx_info['fees']) + "," + \
+                      str(tx_info['fee_rate']) + "," + \
+                      str(tx_info['fee_wrate']) + "," + \
+                      str(tx_info['transacted']) + "," + \
+                      str(tx_info['receive_time']) + "," + \
+                      str(tx_info['block_time']) + \
                       ")"
             c.execute(command)
             self.conn.commit()
-            # print("add new into " + self.tablename + " " + tx_info['hash'])
+        # print("add new into " + self.tablename + " " + tx_info['hash'])
+
+    # def add_block_tx(self, tx_info):
+    #     if not self.is_exist(tx_info['hash']):
+    #         c = self.conn.cursor()
+    #         command = "INSERT INTO " + self.tablename + "(HASH,SIZE,TOTAL_INPUT,TOTAL_OUTPUT,FEE,FEE_RATE,RECEIVED_TIME,BLOCK_TIME) VALUES ('" + \
+    #                   tx_info['hash'] + "'," + str(tx_info['size']) + "," + str(tx_info['total_input']) + "," + \
+    #                   str(tx_info['total_output']) + "," + str(tx_info['fees']) + "," + str(tx_info['fee_rate']) + \
+    #                   "," + str(tx_info['receive_time']) + \
+    #                   "," + str(tx_info['block_time']) + \
+    #                   ")"
+    #         c.execute(command)
+    #         self.conn.commit()
+    #         # print("add new into " + self.tablename + " " + tx_info['hash'])
 
     def get_all_tx_from(self, source_table):
         c = self.conn.cursor()
@@ -157,7 +173,7 @@ class DBCache:
         self.lock.release()
         return res
 
-    def get_size(self,is_add_queue):
+    def get_size(self, is_add_queue):
         self.lock.acquire()
         if is_add_queue:
             res = self.add_queue.__len__()
