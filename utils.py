@@ -22,7 +22,8 @@ def timestamp_to_date(st):
 
 def dump_csv_file(tx_info_list, file_name):
     with open(file_name, 'a+') as file:
-        filed_names = ['hash', 'size', 'receive_time', 'block_time', 'total_input', 'total_output', 'fees', 'fee_rate']
+        filed_names = ['hash', 'size', 'weight', 'lock_time', 'confirmations', 'receive_time', 'block_time',
+                       'total_input', 'total_output', 'fees', 'fee_rate', 'fee_wrate', 'transacted']
         writer = csv.DictWriter(file, fieldnames=filed_names)
         writer.writeheader()
         for tx_info in tx_info_list:
@@ -30,11 +31,16 @@ def dump_csv_file(tx_info_list, file_name):
                 {
                     'hash': tx_info[0],
                     'size': tx_info[1],
-                    'receive_time': tx_info[6],
-                    'block_time': tx_info[7],
-                    'total_input': tx_info[2],
-                    'total_output': tx_info[3],
-                    'fees': tx_info[4],
-                    'fee_rate': tx_info[5]
+                    'weight': tx_info[2],
+                    'lock_time': tx_info[3],
+                    'confirmations': tx_info[4],
+                    'receive_time': tx_info[11],
+                    'block_time': tx_info[12],
+                    'total_input': tx_info[5],
+                    'total_output': tx_info[6],
+                    'fees': tx_info[7],
+                    'fee_rate': tx_info[8],
+                    'fee_wrate': tx_info[9],
+                    'transacted': tx_info[10],
                 }
             )

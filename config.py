@@ -1,6 +1,6 @@
 from multiprocessing import cpu_count
 
-db_name = "/data/tx.db"
+db_name = "tx.db"
 db_copy_name = "tx_.db"
 db_dump_time = 5 * 60
 
